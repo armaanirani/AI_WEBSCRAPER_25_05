@@ -1,7 +1,10 @@
 import streamlit as st
 import os
+from dotenv import load_dotenv
 from scrape import scrape_website, split_dom_content, clean_body_content, extract_body_content
-from parse import parse_with_ai, parse_with_langchain_memory
+from parse import parse_with_ai
+
+load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -12,40 +15,6 @@ st.set_page_config(
 
 st.title("🕷️ AI Web Scraper")
 st.markdown("Scrape websites and extract specific information using AI")
-
-# Fixed model - no sidebar selection needed
-SELECTED_MODEL = "llama-3.3-70b-versatile"
-
-# LangChain specific options
-st.sidebar.header("🔗 Extraction Options")
-extraction_type = st.sidebar.selectbox(
-    "Extraction Type",
-    ["general", "contact", "product", "content"],
-    help="Choose specialized extraction type for better results"
-)
-
-use_memory = st.sidebar.checkbox(
-    "Use Enhanced Processing",
-    value=False,
-    help="Enable enhanced processing for better context understanding"
-)
-
-# Scraping options
-st.sidebar.markdown("---")
-st.sidebar.header("🌐 Scraping Options")
-use_selenium = st.sidebar.checkbox(
-    "Use Selenium (Dynamic Content)",
-    value=True,
-    help="Enable for websites with JavaScript content"
-)
-
-timeout_seconds = st.sidebar.slider(
-    "Timeout (seconds)",
-    min_value=10,
-    max_value=60,
-    value=30,
-    help="Maximum time to wait for page loading"
-)
 
 # Main interface
 col1, col2 = st.columns([2, 1])
@@ -73,7 +42,7 @@ if scrape_button:
                 if not url.startswith(('http://', 'https://')):
                     url = 'https://' + url
                 
-                result = scrape_website(url, use_selenium=use_selenium, timeout=timeout_seconds)
+                result = scrape_website(url)
                 body_content = extract_body_content(result)
                 cleaned_content = clean_body_content(body_content)
                 
@@ -120,37 +89,27 @@ if "dom_content" in st.session_state:
         else:
             with st.spinner("🤖 AI is analyzing the content..."):
                 try:
-                    # Check for GROQ_API_KEY
-                    if not os.getenv("GROQ_API_KEY"):
-                        st.error("❌ GROQ_API_KEY not found in environment variables")
-                        st.info("💡 Please set your GROQ_API_KEY in the environment variables")
+                    # Check for OPENAI_API_KEY
+                    if not os.getenv("OPENAI_API_KEY"):
+                        st.error("❌ OPENAI_API_KEY not found in environment variables")
+                        st.info("💡 Please set your OPENAI_API_KEY in the environment variables")
                     else:
                         dom_chunks = split_dom_content(st.session_state.dom_content)
-                        st.info(f"📊 Processing {len(dom_chunks)} content chunks with {SELECTED_MODEL}...")
+                        st.info(f"📊 Processing {len(dom_chunks)} content chunks...")
                         
                         # Create progress bar
                         progress_bar = st.progress(0)
                         status_text = st.empty()
                         
-                        # Process chunks with Groq
-                        if use_memory:
-                            result = parse_with_langchain_memory(
-                                dom_chunks, 
-                                parse_description,
-                                SELECTED_MODEL
+                        # Process chunks with OpenAI
+                        result = parse_with_ai(
+                            dom_chunks, 
+                            parse_description,
+                            progress_callback=lambda i, total: (
+                                progress_bar.progress(i / total),
+                                status_text.text(f"Processing chunk {i}/{total}...")
                             )
-                        else:
-                            result = parse_with_ai(
-                                dom_chunks, 
-                                parse_description, 
-                                "groq",
-                                SELECTED_MODEL,
-                                extraction_type=extraction_type,
-                                progress_callback=lambda i, total: (
-                                    progress_bar.progress(i / total),
-                                    status_text.text(f"Processing chunk {i}/{total}...")
-                                )
-                            )
+                        )
                         
                         progress_bar.progress(1.0)
                         status_text.text("✅ Processing complete!")
@@ -209,8 +168,8 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p>🚀 AI Web Scraper | Built with Streamlit & Groq</p>
-        <p><small>Powered by Groq LLMs for intelligent content extraction</small></p>
+        <p>🚀 AI Web Scraper | Built with Streamlit & OpenAI</p>
+        <p><small>Powered by OpenAI GPT for intelligent content extraction</small></p>
     </div>
     """,
     unsafe_allow_html=True
