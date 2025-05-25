@@ -13,32 +13,13 @@ st.set_page_config(
 st.title("🕷️ AI Web Scraper")
 st.markdown("Scrape websites and extract specific information using AI")
 
-# Sidebar for API configuration
-st.sidebar.header("🔑 API Configuration")
-api_provider = st.sidebar.selectbox(
-    "Choose AI Provider",
-    ["OpenAI", "Groq"],
-    help="Select your preferred AI API provider"
+# Sidebar for model configuration
+st.sidebar.header("⚙️ Model Configuration")
+selected_model = st.sidebar.selectbox(
+    "Select Model",
+    ["mixtral-8x7b-32768", "llama3-70b-8192", "gemma-7b-it"],
+    help="Select Groq model to use"
 )
-
-if api_provider == "OpenAI":
-    api_key = st.sidebar.text_input(
-        "OpenAI API Key", 
-        type="password", 
-        help="Enter your OpenAI API key",
-        placeholder="sk-..."
-    )
-    model_options = ["gpt-4o-mini", "gpt-4.1-nano", "gpt-4.1-mini"]
-else:
-    api_key = st.sidebar.text_input(
-        "Groq API Key", 
-        type="password", 
-        help="Enter your Groq API key",
-        placeholder="gsk_..."
-    )
-    model_options = ["llama-3.3", "llama-3.1", "gemma2"]
-
-selected_model = st.sidebar.selectbox("Select Model", model_options)
 
 # LangChain specific options
 st.sidebar.markdown("---")
@@ -74,8 +55,6 @@ with col2:
 if scrape_button:
     if not url:
         st.error("❌ Please enter a URL")
-    elif not api_key:
-        st.error(f"❌ Please enter your {api_provider} API key in the sidebar")
     else:
         with st.spinner("🔄 Scraping website..."):
             try:
@@ -127,16 +106,13 @@ if "dom_content" in st.session_state:
     if parse_button:
         if not parse_description.strip():
             st.error("❌ Please describe what you want to extract")
-        elif not api_key:
-            st.error(f"❌ Please enter your {api_provider} API key in the sidebar")
         else:
             with st.spinner("🤖 AI is analyzing the content..."):
                 try:
-                    # Set API key as environment variable
-                    if api_provider == "OpenAI":
-                        os.environ["OPENAI_API_KEY"] = api_key
-                    else:
-                        os.environ["GROQ_API_KEY"] = api_key
+                    # Ensure GROQ_API_KEY is set in .env file
+                    if not os.getenv("GROQ_API_KEY"):
+                        st.error("❌ GROQ_API_KEY not found in environment variables")
+                        continue
                     
                     dom_chunks = split_dom_content(st.session_state.dom_content)
                     st.info(f"📊 Processing {len(dom_chunks)} content chunks...")
@@ -145,29 +121,18 @@ if "dom_content" in st.session_state:
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     
-                    # Choose parsing method based on user selection
-                    if use_memory:
-                        st.info("🧠 Using LangChain with conversation memory...")
-                        result = parse_with_langchain_memory(
-                            dom_chunks, 
-                            parse_description, 
-                            api_provider.lower(),
-                            selected_model
+                    # Process chunks with Groq
+                    result = parse_with_ai(
+                        dom_chunks, 
+                        parse_description, 
+                        "groq",
+                        selected_model,
+                        extraction_type=extraction_type,
+                        progress_callback=lambda i, total: (
+                            progress_bar.progress(i / total),
+                            status_text.text(f"Processing chunk {i}/{total}...")
                         )
-                        progress_bar.progress(1.0)
-                        status_text.text("✅ Processing complete!")
-                    else:
-                        result = parse_with_ai(
-                            dom_chunks, 
-                            parse_description, 
-                            api_provider.lower(),
-                            selected_model,
-                            extraction_type=extraction_type,
-                            progress_callback=lambda i, total: (
-                                progress_bar.progress(i / total),
-                                status_text.text(f"Processing chunk {i}/{total}...")
-                            )
-                        )
+                    )
                     
                     progress_bar.progress(1.0)
                     status_text.text("✅ Processing complete!")
@@ -204,7 +169,7 @@ st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 20px;'>
         <p>🚀 Enhanced AI Web Scraper | Built with Streamlit</p>
-        <p><small>Supports OpenAI and Groq APIs for intelligent content extraction</small></p>
+        <p><small>Powered by Groq for intelligent content extraction</small></p>
     </div>
     """,
     unsafe_allow_html=True
