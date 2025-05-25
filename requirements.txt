@@ -11,3 +11,4 @@ html5lib
 requests
 openai
 groq
+python-dotenv
