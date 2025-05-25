@@ -1,6 +1,9 @@
 streamlit
 langchain
-langchain-ollama
+langchain-openai
+langchain-groq
+langchain-core
+langchain-community
 selenium
 beautifulsoup4
 lxml
