@@ -1,8 +1,8 @@
 import os
 import time
 import requests
-from urllib.parse import urljoin, urlparse
-from typing import Optional, List
+from urllib.parse import urlparse
+from typing import List
 import selenium.webdriver as webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options

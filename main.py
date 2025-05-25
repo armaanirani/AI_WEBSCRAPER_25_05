@@ -13,6 +13,8 @@ st.set_page_config(
 st.title("🕷️ AI Web Scraper")
 st.markdown("Scrape websites and extract specific information using AI")
 
+# Fixed model - no sidebar selection needed
+SELECTED_MODEL = "llama-3.3-70b-versatile"
 
 # LangChain specific options
 st.sidebar.header("🔗 Extraction Options")
@@ -124,7 +126,7 @@ if "dom_content" in st.session_state:
                         st.info("💡 Please set your GROQ_API_KEY in the environment variables")
                     else:
                         dom_chunks = split_dom_content(st.session_state.dom_content)
-                        st.info(f"📊 Processing {len(dom_chunks)} content chunks with {selected_model}...")
+                        st.info(f"📊 Processing {len(dom_chunks)} content chunks with {SELECTED_MODEL}...")
                         
                         # Create progress bar
                         progress_bar = st.progress(0)
@@ -135,14 +137,14 @@ if "dom_content" in st.session_state:
                             result = parse_with_langchain_memory(
                                 dom_chunks, 
                                 parse_description,
-                                selected_model
+                                SELECTED_MODEL
                             )
                         else:
                             result = parse_with_ai(
                                 dom_chunks, 
                                 parse_description, 
                                 "groq",
-                                selected_model,
+                                SELECTED_MODEL,
                                 extraction_type=extraction_type,
                                 progress_callback=lambda i, total: (
                                     progress_bar.progress(i / total),
