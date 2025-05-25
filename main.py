@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from scrape import scrape_website, split_dom_content, clean_body_content, extract_body_content
-from parse import parse_with_ai
+from parse import parse_with_ai, parse_with_langchain_memory
 
 # Page configuration
 st.set_page_config(
@@ -28,7 +28,7 @@ if api_provider == "OpenAI":
         help="Enter your OpenAI API key",
         placeholder="sk-..."
     )
-    model_options = ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]
+    model_options = ["gpt-4o-mini", "gpt-4.1-nano", "gpt-4.1-mini"]
 else:
     api_key = st.sidebar.text_input(
         "Groq API Key", 
@@ -36,9 +36,24 @@ else:
         help="Enter your Groq API key",
         placeholder="gsk_..."
     )
-    model_options = ["llama-3.1-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
+    model_options = ["llama-3.3", "llama-3.1", "gemma2"]
 
 selected_model = st.sidebar.selectbox("Select Model", model_options)
+
+# LangChain specific options
+st.sidebar.markdown("---")
+st.sidebar.header("🔗 LangChain Options")
+extraction_type = st.sidebar.selectbox(
+    "Extraction Type",
+    ["general", "contact", "product", "content"],
+    help="Choose specialized extraction type for better results"
+)
+
+use_memory = st.sidebar.checkbox(
+    "Use Conversation Memory",
+    value=False,
+    help="Enable memory for better context understanding across chunks"
+)
 
 # Main interface
 col1, col2 = st.columns([2, 1])
@@ -130,16 +145,29 @@ if "dom_content" in st.session_state:
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     
-                    result = parse_with_ai(
-                        dom_chunks, 
-                        parse_description, 
-                        api_provider.lower(),
-                        selected_model,
-                        progress_callback=lambda i, total: (
-                            progress_bar.progress(i / total),
-                            status_text.text(f"Processing chunk {i}/{total}...")
+                    # Choose parsing method based on user selection
+                    if use_memory:
+                        st.info("🧠 Using LangChain with conversation memory...")
+                        result = parse_with_langchain_memory(
+                            dom_chunks, 
+                            parse_description, 
+                            api_provider.lower(),
+                            selected_model
                         )
-                    )
+                        progress_bar.progress(1.0)
+                        status_text.text("✅ Processing complete!")
+                    else:
+                        result = parse_with_ai(
+                            dom_chunks, 
+                            parse_description, 
+                            api_provider.lower(),
+                            selected_model,
+                            extraction_type=extraction_type,
+                            progress_callback=lambda i, total: (
+                                progress_bar.progress(i / total),
+                                status_text.text(f"Processing chunk {i}/{total}...")
+                            )
+                        )
                     
                     progress_bar.progress(1.0)
                     status_text.text("✅ Processing complete!")
