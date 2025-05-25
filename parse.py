@@ -13,14 +13,41 @@ template = (
 model = OllamaLLM(model="deepseek-r1:14b")
 
 def parse_with_ollama(dom_chunks, parse_description):
+    """Parse DOM content using Ollama LLM based on description.
+    
+    Args:
+        dom_chunks (list): List of DOM content chunks
+        parse_description (str): Description of what to parse
+        
+    Returns:
+        str: Parsed content concatenated from all chunks
+        
+    Raises:
+        ValueError: If inputs are invalid
+        Exception: For parsing errors
+    """
+    if not dom_chunks or not isinstance(dom_chunks, list):
+        raise ValueError("dom_chunks must be a non-empty list")
+    if not parse_description or not isinstance(parse_description, str):
+        raise ValueError("parse_description must be a non-empty string")
+
     prompt = ChatPromptTemplate.from_template(template)
     chain = prompt | model
     
     parsed_results = []
     
-    for i, chunk in enumerate(dom_chunks, start=1):
-        response = chain.invoke({"dom_content": chunk, "parse_description": parse_description})
-        print(f"Parsed batch {i} of {len(dom_chunks)}")
-        parsed_results.append(response)
-    
-    return "\n".join(parsed_results)
+    try:
+        for i, chunk in enumerate(dom_chunks, start=1):
+            if not chunk:  # Skip empty chunks
+                continue
+                
+            response = chain.invoke({
+                "dom_content": chunk, 
+                "parse_description": parse_description
+            })
+            print(f"Parsed batch {i} of {len(dom_chunks)}")
+            parsed_results.append(str(response))
+            
+        return "\n".join(parsed_results) if parsed_results else ""
+    except Exception as e:
+        raise Exception(f"Parsing failed: {str(e)}")
