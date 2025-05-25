@@ -1,10 +1,7 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
 from scrape import scrape_website, split_dom_content, clean_body_content, extract_body_content
 from parse import parse_with_ai
-
-load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -89,10 +86,10 @@ if "dom_content" in st.session_state:
         else:
             with st.spinner("🤖 AI is analyzing the content..."):
                 try:
-                    # Check for OPENAI_API_KEY
-                    if not os.getenv("OPENAI_API_KEY"):
-                        st.error("❌ OPENAI_API_KEY not found in environment variables")
-                        st.info("💡 Please set your OPENAI_API_KEY in the environment variables")
+                    # Check for GROQ_API_KEY
+                    if not os.getenv("GROQ_API_KEY"):
+                        st.error("❌ GROQ_API_KEY not found in environment variables")
+                        st.info("💡 Please set your GROQ_API_KEY in the environment variables")
                     else:
                         dom_chunks = split_dom_content(st.session_state.dom_content)
                         st.info(f"📊 Processing {len(dom_chunks)} content chunks...")
@@ -168,8 +165,8 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p>🚀 AI Web Scraper | Built with Streamlit & OpenAI</p>
-        <p><small>Powered by OpenAI GPT for intelligent content extraction</small></p>
+        <p>🚀 AI Web Scraper | Built with Streamlit & Langchain</p>
+        <p><small>Powered by Groq for intelligent content extraction</small></p>
     </div>
     """,
     unsafe_allow_html=True

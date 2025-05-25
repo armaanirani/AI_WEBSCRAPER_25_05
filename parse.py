@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from typing import List, Optional, Callable
 
 load_dotenv()
@@ -11,7 +13,7 @@ def parse_with_ai(
     progress_callback: Optional[Callable] = None
 ) -> str:
     """
-    Parse DOM content using OpenAI GPT.
+    Parse DOM content using LangChain with Groq.
     
     Args:
         dom_chunks: List of DOM content chunks
@@ -30,20 +32,27 @@ def parse_with_ai(
     if not parse_description or not isinstance(parse_description, str):
         raise ValueError("parse_description must be a non-empty string")
 
-    # Initialize OpenAI client
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY not found in environment variables")
+    # Initialize Groq client through LangChain
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY not found in environment variables")
 
-    client = OpenAI(api_key=openai_api_key)
+    model = ChatGroq(
+        model_name="llama-3.3-70b-versatile",
+        temperature=0,
+        groq_api_key=groq_api_key
+    )
     
     # Create prompt template
-    template = f"""Extract only the information that matches this description: {parse_description}
+    template = """Extract only the information that matches this description: {parse_description}
 
 Content to analyze:
-{{content}}
+{dom_content}
 
 Return only the extracted information with no additional text or explanations."""
+    
+    prompt = ChatPromptTemplate.from_template(template)
+    chain = prompt | model | StrOutputParser()
     
     parsed_results = []
     
@@ -56,22 +65,16 @@ Return only the extracted information with no additional text or explanations.""
             if progress_callback:
                 progress_callback(i, len(dom_chunks))
             
-            # Call OpenAI API
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": template.format(content=chunk)}
-                ],
-                temperature=0,
-                max_tokens=1000
-            )
-            
-            result = response.choices[0].message.content
+            # Process chunk with LangChain
+            response = chain.invoke({
+                "dom_content": chunk, 
+                "parse_description": parse_description
+            })
             
             print(f"Parsed batch {i} of {len(dom_chunks)}")
             
-            if result and result.strip():
-                parsed_results.append(result.strip())
+            if response and response.strip():
+                parsed_results.append(response.strip())
             
         return "\n\n".join(parsed_results) if parsed_results else "No matching information found"
         
