@@ -13,17 +13,9 @@ st.set_page_config(
 st.title("🕷️ AI Web Scraper")
 st.markdown("Scrape websites and extract specific information using AI")
 
-# Sidebar for model configuration
-st.sidebar.header("⚙️ Model Configuration")
-selected_model = st.sidebar.selectbox(
-    "Select Model",
-    ["mixtral-8x7b-32768", "llama3-70b-8192", "gemma-7b-it"],
-    help="Select Groq model to use"
-)
 
 # LangChain specific options
-st.sidebar.markdown("---")
-st.sidebar.header("🔗 LangChain Options")
+st.sidebar.header("🔗 Extraction Options")
 extraction_type = st.sidebar.selectbox(
     "Extraction Type",
     ["general", "contact", "product", "content"],
@@ -31,9 +23,26 @@ extraction_type = st.sidebar.selectbox(
 )
 
 use_memory = st.sidebar.checkbox(
-    "Use Conversation Memory",
+    "Use Enhanced Processing",
     value=False,
-    help="Enable memory for better context understanding across chunks"
+    help="Enable enhanced processing for better context understanding"
+)
+
+# Scraping options
+st.sidebar.markdown("---")
+st.sidebar.header("🌐 Scraping Options")
+use_selenium = st.sidebar.checkbox(
+    "Use Selenium (Dynamic Content)",
+    value=True,
+    help="Enable for websites with JavaScript content"
+)
+
+timeout_seconds = st.sidebar.slider(
+    "Timeout (seconds)",
+    min_value=10,
+    max_value=60,
+    value=30,
+    help="Maximum time to wait for page loading"
 )
 
 # Main interface
@@ -62,7 +71,7 @@ if scrape_button:
                 if not url.startswith(('http://', 'https://')):
                     url = 'https://' + url
                 
-                result = scrape_website(url)
+                result = scrape_website(url, use_selenium=use_selenium, timeout=timeout_seconds)
                 body_content = extract_body_content(result)
                 cleaned_content = clean_body_content(body_content)
                 
@@ -71,7 +80,7 @@ if scrape_button:
                 else:
                     st.session_state.dom_content = cleaned_content
                     st.session_state.source_url = url
-                    st.success(f"✅ Successfully scraped {len(cleaned_content)} characters from {url}")
+                    st.success(f"✅ Successfully scraped {len(cleaned_content):,} characters from {url}")
                     
                     # Show content preview
                     with st.expander("👀 View Scraped Content Preview"):
@@ -109,67 +118,97 @@ if "dom_content" in st.session_state:
         else:
             with st.spinner("🤖 AI is analyzing the content..."):
                 try:
-                    # Ensure GROQ_API_KEY is set in .env file
+                    # Check for GROQ_API_KEY
                     if not os.getenv("GROQ_API_KEY"):
                         st.error("❌ GROQ_API_KEY not found in environment variables")
-                        continue
-                    
-                    dom_chunks = split_dom_content(st.session_state.dom_content)
-                    st.info(f"📊 Processing {len(dom_chunks)} content chunks...")
-                    
-                    # Create progress bar
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    # Process chunks with Groq
-                    result = parse_with_ai(
-                        dom_chunks, 
-                        parse_description, 
-                        "groq",
-                        selected_model,
-                        extraction_type=extraction_type,
-                        progress_callback=lambda i, total: (
-                            progress_bar.progress(i / total),
-                            status_text.text(f"Processing chunk {i}/{total}...")
-                        )
-                    )
-                    
-                    progress_bar.progress(1.0)
-                    status_text.text("✅ Processing complete!")
-                    
-                    if result.strip():
-                        st.success("🎉 Information extracted successfully!")
-                        
-                        # Display results in a nice format
-                        st.subheader("📋 Extracted Information:")
-                        st.markdown(result)
-                        
-                        # Download option
-                        st.download_button(
-                            label="💾 Download Results",
-                            data=result,
-                            file_name=f"extracted_info_{st.session_state.get('source_url', 'website').replace('https://', '').replace('http://', '').replace('/', '_')}.txt",
-                            mime="text/plain"
-                        )
+                        st.info("💡 Please set your GROQ_API_KEY in the environment variables")
                     else:
-                        st.warning("⚠️ No matching information found based on your description")
-                        st.info("💡 Try rephrasing your extraction request or check if the content contains what you're looking for")
+                        dom_chunks = split_dom_content(st.session_state.dom_content)
+                        st.info(f"📊 Processing {len(dom_chunks)} content chunks with {selected_model}...")
                         
+                        # Create progress bar
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Process chunks with Groq
+                        if use_memory:
+                            result = parse_with_langchain_memory(
+                                dom_chunks, 
+                                parse_description,
+                                selected_model
+                            )
+                        else:
+                            result = parse_with_ai(
+                                dom_chunks, 
+                                parse_description, 
+                                "groq",
+                                selected_model,
+                                extraction_type=extraction_type,
+                                progress_callback=lambda i, total: (
+                                    progress_bar.progress(i / total),
+                                    status_text.text(f"Processing chunk {i}/{total}...")
+                                )
+                            )
+                        
+                        progress_bar.progress(1.0)
+                        status_text.text("✅ Processing complete!")
+                        
+                        if result and result.strip() and result != "No matching information found":
+                            st.success("🎉 Information extracted successfully!")
+                            
+                            # Display results in a nice format
+                            st.subheader("📋 Extracted Information:")
+                            st.markdown(result)
+                            
+                            # Download option
+                            filename = f"extracted_info_{st.session_state.get('source_url', 'website').replace('https://', '').replace('http://', '').replace('/', '_')}.txt"
+                            st.download_button(
+                                label="💾 Download Results",
+                                data=result,
+                                file_name=filename,
+                                mime="text/plain"
+                            )
+                        else:
+                            st.warning("⚠️ No matching information found based on your description")
+                            st.info("💡 Try rephrasing your extraction request or check if the content contains what you're looking for")
+                            
                 except Exception as e:
                     st.error(f"❌ Extraction failed: {str(e)}")
                     st.info("💡 Please check your API key and try again")
                 finally:
                     # Clean up progress indicators
-                    progress_bar.empty()
-                    status_text.empty()
+                    try:
+                        progress_bar.empty()
+                        status_text.empty()
+                    except:
+                        pass
+
+# Additional information section
+if "dom_content" in st.session_state:
+    st.markdown("---")
+    st.header("📊 Content Statistics")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        word_count = len(st.session_state.dom_content.split())
+        st.metric("Word Count", f"{word_count:,}")
+    
+    with col2:
+        char_count = len(st.session_state.dom_content)
+        st.metric("Character Count", f"{char_count:,}")
+    
+    with col3:
+        chunk_count = len(split_dom_content(st.session_state.dom_content))
+        st.metric("Processing Chunks", chunk_count)
 
 # Footer
 st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 20px;'>
-        <p>🚀 Enhanced AI Web Scraper | Built with Streamlit</p>
-        <p><small>Powered by Groq for intelligent content extraction</small></p>
+        <p>🚀 AI Web Scraper | Built with Streamlit & Groq</p>
+        <p><small>Powered by Groq LLMs for intelligent content extraction</small></p>
     </div>
     """,
     unsafe_allow_html=True
